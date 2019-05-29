@@ -46,7 +46,9 @@ namespace winrt::AudioVisualizer::implementation
 		_pWindow(nullptr),
 		_analyzerTypes(AnalyzerType::All),
 		_evtProcessingThreadWait(INVALID_HANDLE_VALUE),
+		_workThreadCompleted(false),
 		_bIsSuspended(false),
+		_bIsClosed(false),
 		_bIsFlushPending(true)	// Pick up position from first frame added
 	{
 		if (inputChannels == 0 || sampleRate == 0 || inputStep == 0 || fftLength == 0)
@@ -101,12 +103,13 @@ namespace winrt::AudioVisualizer::implementation
 			if (_evtProcessingThreadWait == INVALID_HANDLE_VALUE) {
 				throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));
 			}
+			_workThreadCompleted = false;
 			_workThread = Windows::System::Threading::ThreadPool::RunAsync(
 				Windows::System::Threading::WorkItemHandler(this, &AudioAnalyzer::ProcessingProc),
 				Windows::System::Threading::WorkItemPriority::High);
 			_workThread.Completed([&](Windows::Foundation::IAsyncAction const& asyncInfo, Windows::Foundation::AsyncStatus const& asyncStatus)
 			{
-				FreeBuffers();
+				_workThreadCompleted = true;
 			});
 		}
 	}
@@ -148,8 +151,8 @@ namespace winrt::AudioVisualizer::implementation
 		_pFftBuffers = nullptr;
 		if (_pWindow != nullptr)
 			_aligned_free(_pWindow);
-		_inputBuffer.freeMemory();
 		_pWindow = nullptr;
+		_inputBuffer.freeMemory();
 	}
 
 	void AudioAnalyzer::ProcessInput(Windows::Media::AudioFrame const& frame)
@@ -339,7 +342,10 @@ namespace winrt::AudioVisualizer::implementation
 			{
 				for (size_t vIndex = 0, vElementIndex=vBaseIndex; vIndex < vSpectrumFrames; vIndex++,vElementIndex++)
 				{
-					_pFftReal[vElementIndex] *= _pWindow[vIndex];
+					if (_pFftReal && _pWindow)
+					{
+						_pFftReal[vElementIndex] *= _pWindow[vIndex];
+					}
 				}
 			}
 			for (size_t channelIndex = 0; channelIndex < _inputChannels; channelIndex++)
@@ -414,15 +420,14 @@ namespace winrt::AudioVisualizer::implementation
 	void AudioAnalyzer::IsSuspended(bool value)
 	{
 		if (value != _bIsSuspended) {
+			_bIsSuspended = value;
 			if (value) {
-				_bIsSuspended = true;
 				Close();
 			}
 			else
 			{
 				Init();
 				Flush();
-				_bIsSuspended = false;
 			}
 		}
 	}
@@ -448,6 +453,13 @@ namespace winrt::AudioVisualizer::implementation
 				_workThread.Cancel();
 				_workThread.Close();
 				CloseHandle(_evtProcessingThreadWait);
+				auto timeout = 5000;
+				while (!_workThreadCompleted && timeout > 0)
+				{
+					Sleep(1);
+					timeout--;
+				}
+				FreeBuffers();
 			}
 			else
 			{

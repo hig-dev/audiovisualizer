@@ -12,6 +12,7 @@ namespace winrt::AudioVisualizer::implementation
 	private:
 		bool _bIsClosed;
 		bool _asyncProcessing;
+		bool _workThreadCompleted;
 		bool _bIsSuspended;
 		bool _bIsFlushPending;
 
@@ -39,6 +40,7 @@ namespace winrt::AudioVisualizer::implementation
 		::AudioVisualizer::ring_buffer _inputBuffer;
 		std::mutex _inputBufferAccess;
 		HANDLE _evtProcessingThreadWait;
+
 		Windows::Foundation::IAsyncAction _workThread{ nullptr };
 		
 		void InitWindow();
@@ -81,7 +83,7 @@ namespace winrt::AudioVisualizer::implementation
 		event_token Output(Windows::Foundation::TypedEventHandler<AudioVisualizer::AudioAnalyzer, AudioVisualizer::VisualizationDataFrame> const& handler);
 		void Output(event_token const& token);
 		void Close();
-	};
+    };
 }
 
 namespace winrt::AudioVisualizer::factory_implementation
