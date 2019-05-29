@@ -104,6 +104,10 @@ namespace winrt::AudioVisualizer::implementation
 			_workThread = Windows::System::Threading::ThreadPool::RunAsync(
 				Windows::System::Threading::WorkItemHandler(this, &AudioAnalyzer::ProcessingProc),
 				Windows::System::Threading::WorkItemPriority::High);
+			_workThread.Completed([&](Windows::Foundation::IAsyncAction const& asyncInfo, Windows::Foundation::AsyncStatus const& asyncStatus)
+			{
+				FreeBuffers();
+			});
 		}
 	}
 
@@ -445,7 +449,10 @@ namespace winrt::AudioVisualizer::implementation
 				_workThread.Close();
 				CloseHandle(_evtProcessingThreadWait);
 			}
-			FreeBuffers();
+			else
+			{
+				FreeBuffers();
+			}
 		}
 	}
 }
