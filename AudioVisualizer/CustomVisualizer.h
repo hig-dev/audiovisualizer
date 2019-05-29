@@ -27,12 +27,19 @@ namespace winrt::AudioVisualizer::implementation
 		Windows::UI::Color _drawingSessionClearColor;
 		AudioVisualizer::IVisualizationSource _visualizationSource;
 
+		Loaded_revoker _loadedEventRevoker;
+		Unloaded_revoker _unloadedEventRevoker;
+		SizeChanged_revoker _sizeChangedEventRevoker;
+		Windows::Graphics::Display::DisplayInformation::DpiChanged_revoker _dpiChangedRevoker;
+		int64_t _visibilityChangedToken;
+
 		void CreateDevice();
 		void RecreateDevice();
 		void InitializeSwapChain();
 		void CreateSwapChainWithSize(Windows::Foundation::Size size);
 		void CreateSwapChainWithSizeAndDpi(Windows::Foundation::Size size, float dpi);
 		void RegisterEventHandlers();
+		void UnregisterEventHandlers();
 		void StartDrawLoop();
 		void DrawLoop(Windows::Foundation::IAsyncAction const& operation);
 		void OnSizeChanged(IInspectable sender, Windows::UI::Xaml::SizeChangedEventArgs args);

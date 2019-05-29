@@ -131,6 +131,8 @@ namespace winrt::AudioVisualizer::implementation
 						Windows::Foundation::IReference<Windows::Foundation::TimeSpan> presentationTime;
 						if (_visualizationSource) {
 							dataFrame = _visualizationSource.GetData();
+						}
+						if (_visualizationSource) {
 							presentationTime = _visualizationSource.PresentationTime();
 						}
 #ifdef _TRACE_
@@ -214,15 +216,19 @@ namespace winrt::AudioVisualizer::implementation
 	{
 		_bDrawEventActive = false;
 		SetEvent(_cancelDrawLoop);
+		UnregisterEventHandlers();
 	}
 	void CustomVisualizer::OnDpiChanged(Windows::Graphics::Display::DisplayInformation info, IInspectable)
 	{
 		Windows::Foundation::Size size;
 		size.Width = (float)ActualWidth();
 		size.Height = (float)ActualHeight();
-		CreateSwapChainWithSizeAndDpi(size, info.LogicalDpi());
-		auto args = make<CreateResourcesEventArgs>(CreateResourcesReason::DpiChanged, _swapChain);
-		_createResourcesEvent(*this, args);
+		if (size.Height > 0 && size.Width > 0)
+		{
+			CreateSwapChainWithSizeAndDpi(size, info.LogicalDpi());
+			auto args = make<CreateResourcesEventArgs>(CreateResourcesReason::DpiChanged, _swapChain);
+			_createResourcesEvent(*this, args);
+		}
 	}
 	void CustomVisualizer::OnVisibilityChanged(Windows::UI::Xaml::DependencyObject obj, Windows::UI::Xaml::DependencyProperty prop)
 	{
@@ -231,15 +237,25 @@ namespace winrt::AudioVisualizer::implementation
 
 	void CustomVisualizer::RegisterEventHandlers()
 	{
-		Loaded(Windows::UI::Xaml::RoutedEventHandler(this, &CustomVisualizer::OnLoaded));
-		Unloaded(Windows::UI::Xaml::RoutedEventHandler(this, &CustomVisualizer::OnUnloaded));
-		SizeChanged(Windows::UI::Xaml::SizeChangedEventHandler(this, &CustomVisualizer::OnSizeChanged));
+		_loadedEventRevoker = Loaded(winrt::auto_revoke, Windows::UI::Xaml::RoutedEventHandler(this, &CustomVisualizer::OnLoaded));
+		_unloadedEventRevoker = Unloaded(winrt::auto_revoke, Windows::UI::Xaml::RoutedEventHandler(this, &CustomVisualizer::OnUnloaded));
+		_sizeChangedEventRevoker = SizeChanged(winrt::auto_revoke, Windows::UI::Xaml::SizeChangedEventHandler(this, &CustomVisualizer::OnSizeChanged));
 		if (!Windows::ApplicationModel::DesignMode::DesignModeEnabled()) {
-			Windows::Graphics::Display::DisplayInformation::GetForCurrentView().DpiChanged(
+			_dpiChangedRevoker = Windows::Graphics::Display::DisplayInformation::GetForCurrentView().
+				DpiChanged(winrt::auto_revoke,
 				Windows::Foundation::TypedEventHandler<Windows::Graphics::Display::DisplayInformation, IInspectable>(this, &CustomVisualizer::OnDpiChanged)
 			);
 		}
-		RegisterPropertyChangedCallback(Windows::UI::Xaml::UIElement::VisibilityProperty(), Windows::UI::Xaml::DependencyPropertyChangedCallback(this, &CustomVisualizer::OnVisibilityChanged));
+		_visibilityChangedToken = RegisterPropertyChangedCallback(Windows::UI::Xaml::UIElement::VisibilityProperty(), Windows::UI::Xaml::DependencyPropertyChangedCallback(this, &CustomVisualizer::OnVisibilityChanged));
+	}
+
+	void CustomVisualizer::UnregisterEventHandlers()
+	{
+		_loadedEventRevoker.revoke();
+		_unloadedEventRevoker.revoke();
+		_sizeChangedEventRevoker.revoke();
+		_dpiChangedRevoker.revoke();
+		UnregisterPropertyChangedCallback(Windows::UI::Xaml::UIElement::VisibilityProperty(), _visibilityChangedToken);
 	}
 
 	CustomVisualizer::CustomVisualizer()
