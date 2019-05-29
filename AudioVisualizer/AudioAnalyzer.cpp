@@ -66,22 +66,13 @@ namespace winrt::AudioVisualizer::implementation
 			throw hresult_invalid_argument(L"FFT length has to be greater than 256");
 		}
 
-		_bIsClosed = false;
 		_asyncProcessing = asyncProcessing;
-
-		if (_asyncProcessing) {
-			_evtProcessingThreadWait = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
-			if (_evtProcessingThreadWait == INVALID_HANDLE_VALUE) {
-				throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));
-			}
-			_workThread = Windows::System::Threading::ThreadPool::RunAsync(
-				Windows::System::Threading::WorkItemHandler(this,&AudioAnalyzer::ProcessingProc),
-				Windows::System::Threading::WorkItemPriority::High);
-		}
 		_inputChannels = inputChannels;
+		_inputStep = inputStep;
+		_inputOverlap = inputOverlap;
+		_bufferSize = bufferSize;
 		_sampleRate = sampleRate;
 		_fOutSampleRate = (float)sampleRate / (float)inputStep;
-
 
 		_fftLength = fftLength;
 		_fFftScale = 2.0f / _fftLength;
@@ -91,22 +82,29 @@ namespace winrt::AudioVisualizer::implementation
 			_fftLengthLog2++;
 
 		// Calculate downsample factor, if FFT length is too short for step+overlap then downsample input
-		UINT32 downsampleFactor = 1;
-		while ((inputStep + inputOverlap) / downsampleFactor > fftLength)
-			downsampleFactor++;
-
-		_inputBuffer = ::AudioVisualizer::ring_buffer(bufferSize, inputChannels, inputStep, inputOverlap, downsampleFactor);
-
-		_stepFrames = inputStep / downsampleFactor;
-		_overlapFrames = inputOverlap / downsampleFactor;
+		_downsampleFactor = 1;
+		while ((inputStep + inputOverlap) / _downsampleFactor > fftLength)
+			_downsampleFactor++;
 		
-		InitWindow();
-		_pFftReal = static_cast<XMVECTOR *>(_aligned_malloc_dbg(_fftLength * sizeof(XMVECTOR) * _inputChannels, 16, __FILE__, __LINE__));	// For real data allocate space for all channels
-		_pFftUnityTable = static_cast<XMVECTOR *> (_aligned_malloc_dbg(2 * _fftLength * sizeof(XMVECTOR), 16, __FILE__, __LINE__));	// Complex values 
-		_pFftBuffers = static_cast<XMVECTOR *>(_aligned_malloc_dbg(2 * _fftLength * sizeof(XMVECTOR), 16, __FILE__, __LINE__));	// Preallocate buffers for FFT calculation 2*length of Fft
-		if (_pFftReal == nullptr || _pFftUnityTable == nullptr || _pFftBuffers == nullptr)
-			throw std::bad_alloc();
-		XDSP::FFTInitializeUnityTable(_pFftUnityTable, _fftLength);
+		_stepFrames = inputStep / _downsampleFactor;
+		_overlapFrames = inputOverlap / _downsampleFactor;
+
+		Init();
+	}
+
+	void AudioAnalyzer::Init()
+	{
+		InitBuffers();
+		_bIsClosed = false;
+		if (_asyncProcessing) {
+			_evtProcessingThreadWait = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
+			if (_evtProcessingThreadWait == INVALID_HANDLE_VALUE) {
+				throw hresult_error(HRESULT_FROM_WIN32(GetLastError()));
+			}
+			_workThread = Windows::System::Threading::ThreadPool::RunAsync(
+				Windows::System::Threading::WorkItemHandler(this, &AudioAnalyzer::ProcessingProc),
+				Windows::System::Threading::WorkItemPriority::High);
+		}
 	}
 
 	void AudioAnalyzer::InitWindow()
@@ -119,6 +117,18 @@ namespace winrt::AudioVisualizer::implementation
 			throw std::bad_alloc();
 		}		
 		CreateBlackmannNuttalWindow(_pWindow, _stepFrames + _overlapFrames);
+	}
+
+	void AudioAnalyzer::InitBuffers()
+	{
+		_inputBuffer = ::AudioVisualizer::ring_buffer(_bufferSize, _inputChannels, _inputStep, _inputOverlap, _downsampleFactor);
+		InitWindow();
+		_pFftReal = static_cast<XMVECTOR*>(_aligned_malloc_dbg(_fftLength * sizeof(XMVECTOR) * _inputChannels, 16, __FILE__, __LINE__));	// For real data allocate space for all channels
+		_pFftUnityTable = static_cast<XMVECTOR*> (_aligned_malloc_dbg(2 * _fftLength * sizeof(XMVECTOR), 16, __FILE__, __LINE__));	// Complex values 
+		_pFftBuffers = static_cast<XMVECTOR*>(_aligned_malloc_dbg(2 * _fftLength * sizeof(XMVECTOR), 16, __FILE__, __LINE__));	// Preallocate buffers for FFT calculation 2*length of Fft
+		if (_pFftReal == nullptr || _pFftUnityTable == nullptr || _pFftBuffers == nullptr)
+			throw std::bad_alloc();
+		XDSP::FFTInitializeUnityTable(_pFftUnityTable, _fftLength);
 	}
 
 	void AudioAnalyzer::FreeBuffers()
@@ -134,6 +144,7 @@ namespace winrt::AudioVisualizer::implementation
 		_pFftBuffers = nullptr;
 		if (_pWindow != nullptr)
 			_aligned_free(_pWindow);
+		_inputBuffer.freeMemory();
 		_pWindow = nullptr;
 	}
 
@@ -148,10 +159,11 @@ namespace winrt::AudioVisualizer::implementation
 #ifdef _TRACE_
 		Trace::AudioAnalyzer_ProcessInput(frame);
 #endif
-		AddInput(frame);
-		
+
 		if (_bIsSuspended)
 			return;
+		
+		AddInput(frame);
 
 		if (_asyncProcessing) {
 			SetEvent(_evtProcessingThreadWait);
@@ -292,11 +304,14 @@ namespace winrt::AudioVisualizer::implementation
 			{
 				XMVECTOR vRMSSum = XMVectorZero();
 				XMVECTOR vPeak = XMVectorZero();
-				for (size_t vIndex = vFromFrame + vOffset; vIndex < vToFrame + vOffset; vIndex++)
+				if (_pFftReal != nullptr)
 				{
-					XMVECTOR vValue = _pFftReal[vIndex];
-					vRMSSum += vValue * vValue;
-					vPeak = XMVectorMax(vPeak, XMVectorAbs(vValue));
+					for (size_t vIndex = vFromFrame + vOffset; vIndex < vToFrame + vOffset; vIndex++)
+					{
+						XMVECTOR vValue = _pFftReal[vIndex];
+						vRMSSum += vValue * vValue;
+						vPeak = XMVectorMax(vPeak, XMVectorAbs(vValue));
+					}
 				}
 				if (pRms != nullptr)
 				{
@@ -395,14 +410,15 @@ namespace winrt::AudioVisualizer::implementation
 	void AudioAnalyzer::IsSuspended(bool value)
 	{
 		if (value != _bIsSuspended) {
-			_bIsSuspended = value;
-			if (!value) {
-				if (_asyncProcessing) {
-					SetEvent(_evtProcessingThreadWait);
-				}
-				else {
-					AnalyzeData();
-				}
+			if (value) {
+				_bIsSuspended = true;
+				Close();
+			}
+			else
+			{
+				Init();
+				Flush();
+				_bIsSuspended = false;
 			}
 		}
 	}
@@ -424,12 +440,12 @@ namespace winrt::AudioVisualizer::implementation
 			if (_evtProcessingThreadWait != INVALID_HANDLE_VALUE) {
 				SetEvent(_evtProcessingThreadWait);
 			}
-			FreeBuffers();
 			if (_asyncProcessing && _workThread) {
 				_workThread.Cancel();
 				_workThread.Close();
 				CloseHandle(_evtProcessingThreadWait);
 			}
+			FreeBuffers();
 		}
 	}
 }

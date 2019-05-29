@@ -20,6 +20,10 @@ namespace winrt::AudioVisualizer::implementation
 		uint32_t _sampleRate;
 		uint32_t _fftLength;
 		uint32_t _fftLengthLog2;
+		uint32_t _bufferSize;
+		uint32_t _inputStep;
+		uint32_t _inputOverlap;
+		UINT32 _downsampleFactor;
 
 		uint32_t _stepFrames;
 		uint32_t _overlapFrames;
@@ -38,6 +42,7 @@ namespace winrt::AudioVisualizer::implementation
 		Windows::Foundation::IAsyncAction _workThread{ nullptr };
 		
 		void InitWindow();
+		void InitBuffers();
 		void FreeBuffers();
 
 		winrt::event<Windows::Foundation::TypedEventHandler<AudioVisualizer::AudioAnalyzer, AudioVisualizer::VisualizationDataFrame>> _output;
@@ -61,6 +66,7 @@ namespace winrt::AudioVisualizer::implementation
 			Close();
 		}
 		AudioAnalyzer(uint32_t bufferSize, uint32_t inputChannels, uint32_t sampleRate, uint32_t inputStep, uint32_t inputOverlap, uint32_t fftLength,bool asyncProcessing);
+		void Init();
 
 		void ProcessInput(Windows::Media::AudioFrame const& frame);
 

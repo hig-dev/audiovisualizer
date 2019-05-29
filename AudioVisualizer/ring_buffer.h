@@ -65,11 +65,23 @@ namespace AudioVisualizer
 
 		void flush()	// Sets buffer length to 0
 		{
-			_reader = _data;
-			_writer = _data;
-			// To avoid long fills with big buffers only fill the overlap area preciding the read&write pointers
-			size_t overlapSampleCount = _overlapFrames * _frameSize;
-			memset(_data + (_size - overlapSampleCount), 0, overlapSampleCount * sizeof(float));
+			if (_data)
+			{
+				_reader = _data;
+				_writer = _data;
+				// To avoid long fills with big buffers only fill the overlap area preciding the read&write pointers
+				size_t overlapSampleCount = _overlapFrames * _frameSize;
+				memset(_data + (_size - overlapSampleCount), 0, overlapSampleCount * sizeof(float));
+			}
+		}
+
+		void freeMemory()
+		{
+			if (_data)
+			{
+				free(_data);
+				_data = nullptr;
+			}
 		}
 
 		size_t downsampleRate() const { return _downsampleRate; }
