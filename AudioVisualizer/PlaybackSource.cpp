@@ -23,7 +23,7 @@ namespace winrt::AudioVisualizer::implementation
 	PlaybackSource::PlaybackSource()
 	{
 		_propSet = Windows::Foundation::Collections::PropertySet();
-		_propSet.MapChanged([this](IInspectable const &, Windows::Foundation::Collections::IMapChangedEventArgs<hstring> const &args)
+		_mapChangedRevoker = _propSet.MapChanged(winrt::auto_revoke,[this](IInspectable const &, Windows::Foundation::Collections::IMapChangedEventArgs<hstring> const &args)
 		{
 			if (args.Key() == L"Source") {
 				auto source = _propSet.Lookup(args.Key()).as<AudioVisualizer::IVisualizationSource>();
@@ -58,6 +58,11 @@ namespace winrt::AudioVisualizer::implementation
 
 		node.EffectDefinitions().Append(effect);
 	}
+
+	PlaybackSource::~PlaybackSource()
+    {
+		_mapChangedRevoker.revoke();
+    }
 
 	AudioVisualizer::PlaybackSource PlaybackSource::CreateFromMediaPlayer(Windows::Media::Playback::MediaPlayer const& mediaPlayer)
 	{

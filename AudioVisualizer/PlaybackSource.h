@@ -10,12 +10,14 @@ namespace winrt::AudioVisualizer::implementation
 		winrt::event<Windows::Foundation::TypedEventHandler<Windows::Foundation::IInspectable,IVisualizationSource>> _sourceChangedEvent;
 		IVisualizationSource _source;
 		Windows::Foundation::Collections::PropertySet _propSet;
+		Windows::Foundation::Collections::PropertySet::MapChanged_revoker _mapChangedRevoker;
 
-        PlaybackSource();
+		PlaybackSource();
 		PlaybackSource(Windows::Media::Playback::MediaPlayer const& mediaPlayer);
 		PlaybackSource(Windows::Media::Audio::IAudioNode const&node);
+		~PlaybackSource();
 
-        AudioVisualizer::IVisualizationSource Source();
+		AudioVisualizer::IVisualizationSource Source();
 		event_token SourceChanged(Windows::Foundation::TypedEventHandler<Windows::Foundation::IInspectable, AudioVisualizer::IVisualizationSource> const& handler);
 		void SourceChanged(event_token const& token);
 
