@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <package >
   <metadata>
-    <id>UWPAudioVisualizer</id>
-    <version>0.0.0</version>
+    <id>UWPAudioVisualizer-hig</id>
+    <version>1.26.0</version>
     <title>UWP Audio Visualizer Spectrum Analyzer</title>
-    <authors>Tonu Vanatalu and James Clarke</authors>
-    <owners>Tonu Vanatalu and James Clarke</owners>
+    <authors>Tonu Vanatalu and James Clarke, hig</authors>
+    <owners>hig</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A UWP extension library containing a XAML custom control that performs stock and custom visualizations of audio spectra.</description>
     <releaseNotes>First working version</releaseNotes>
@@ -15,17 +15,26 @@
     <copyright>Copyright 2017, 2018 Tonu Vanatalu and James Clarke</copyright>
     <tags>Audio Spectrum UWP</tags>
     <dependencies>
-      <dependency id="Win2D.uwp" version="1.23.0">
+      <dependency id="Win2D.uwp" version="1.25.0">
       </dependency>
     </dependencies>
   </metadata>
  <files>
    <file src="Release\AudioVisualizer\Win32\AudioVisualizer.winmd" target="lib\uap10.0"/>
+   <file src="Release\AudioVisualizer\Win32\AudioVisualizer.xml" target="lib\uap10.0"/>
 
    <file src="Release\AudioVisualizer\Win32\AudioVisualizer.dll"  target="runtimes\win10-x86\native"/>
    <file src="Release\AudioVisualizer\Win32\AudioVisualizer.pri" target="runtimes\win10-x86\native"/>
 
    <file src="Release\AudioVisualizer\x64\AudioVisualizer.dll"  target="runtimes\win10-x64\native"/>
    <file src="Release\AudioVisualizer\x64\AudioVisualizer.pri" target="runtimes\win10-x64\native"/>
+
+   <file src="Release\AudioVisualizer\ARM\AudioVisualizer.dll"  target="runtimes\win10-arm\native"/>
+   <file src="Release\AudioVisualizer\ARM\AudioVisualizer.pri" target="runtimes\win10-arm\native"/>
+
+   <file src="Release\AudioVisualizer\ARM64\AudioVisualizer.dll"  target="runtimes\win10-arm64\native"/>
+   <file src="Release\AudioVisualizer\ARM64\AudioVisualizer.pri" target="runtimes\win10-arm64\native"/>
+
+   <file src="UWPAudioVisualizer-hig.targets" target="build\native"/>
  </files>
 </package>
